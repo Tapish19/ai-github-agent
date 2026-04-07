@@ -5,38 +5,43 @@ require("dotenv").config()
 const { solveIssue } = require("./agent")
 
 const app = express()
+const PORT = process.env.PORT || 5000
+const corsOrigin = process.env.CORS_ORIGIN || "*"
 
-
-app.use(cors())
+app.use(cors({ origin: corsOrigin }))
 app.use(express.json())
 
-app.post("/solve", async (req, res) => {
+app.get("/health", (req, res) => {
+    res.status(200).json({ status: "ok" })
+})
 
+app.post("/solve", async (req, res) => {
     try {
         const { issueNumber } = req.body
+
+        if (!issueNumber) {
+            return res.status(400).json({ error: "issueNumber is required" })
+        }
 
         console.log("Received request for issue:", issueNumber)
 
         // Demo mode - return mock response if env vars not set properly
-        // we only need a GitHub token and the Gemini API key; the
-        // OPENAI_API_KEY check was leftover from an earlier prototype.
         if (!process.env.GITHUB_TOKEN || !process.env.GEMINI_API_KEY) {
             console.log("Running in demo mode (no API credentials)")
-            return res.json({ 
+            return res.json({
                 message: "AI solving started (demo mode)",
                 patch: `--- a/file.js\n+++ b/file.js\n@@ -1,3 +1,3 @@\n// Mock patch\n// This is a demo response\n// Add your actual GitHub and Gemini API keys to .env`
             })
         }
 
-        // the helper may return {message, patch, prUrl?, prError?}
         const result = await solveIssue(issueNumber)
-        res.json(result)
+        return res.json(result)
     } catch (error) {
         console.error("Error in /solve:", error.message)
-        res.status(500).json({ error: error.message })
+        return res.status(500).json({ error: error.message })
     }
 })
 
-app.listen(5000, () => {
-    console.log("Server running on port 5000")
+app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`)
 })
