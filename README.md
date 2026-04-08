@@ -73,6 +73,7 @@ This repo includes a `render.yaml` blueprint that provisions two services:
    - `GITHUB_OWNER`
    - `GITHUB_REPO`
    - `GEMINI_API_KEY`
+   - `GEMINI_MODEL` (optional, defaults to `gemini-2.0-flash` with fallback support)
 5. Update domains in `render.yaml` to match your real Render service URLs:
    - `CORS_ORIGIN` on backend
    - `VITE_API_BASE_URL` on frontend
@@ -90,7 +91,7 @@ curl https://<your-backend-service>.onrender.com/health
 ## Development notes
 
 - `backend/githubService.js` contains GitHub API helpers (`getIssue`, `createPullRequest`).
-- `backend/aiService.js` talks to Gemini; modify the prompt for different behavior.
+- `backend/aiService.js` talks to Gemini; it uses `GEMINI_MODEL` when provided and falls back across supported models.
 - `backend/agent.js` orchestrates the flow and handles errors.
 - The server supports `PORT` and `CORS_ORIGIN` environment variables for deployment.
 
