@@ -4,23 +4,40 @@ const GITHUB_TOKEN = process.env.GITHUB_TOKEN
 const OWNER = process.env.GITHUB_OWNER
 const REPO = process.env.GITHUB_REPO
 
+function buildGithubHeaders() {
+    return {
+        // GitHub PATs are expected with the `token` scheme.
+        Authorization: `token ${GITHUB_TOKEN}`,
+        Accept: "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28"
+    }
+}
+
 async function getIssue(issueNumber) {
     try {
         const res = await axios.get(
             `https://api.github.com/repos/${OWNER}/${REPO}/issues/${issueNumber}`,
-            {
-                headers: {
-                    Authorization: `Bearer ${GITHUB_TOKEN}`,
-                    Accept: "application/vnd.github+json"
-                }
-            }
+            { headers: buildGithubHeaders() }
         )
 
         return res.data
     } catch (err) {
         if (err.response && err.response.status === 404) {
-            throw new Error(`Issue #${issueNumber} not found`)
+            throw new Error(`Issue #${issueNumber} not found in ${OWNER}/${REPO}`)
         }
+
+        if (err.response && err.response.status === 401) {
+            throw new Error(
+                `GitHub authentication failed (401). Check GITHUB_TOKEN value and ensure it is a valid PAT for ${OWNER}/${REPO}.`
+            )
+        }
+
+        if (err.response && err.response.status === 403) {
+            throw new Error(
+                `GitHub access denied (403). Confirm token permissions for ${OWNER}/${REPO} include repository read/write and pull requests.`
+            )
+        }
+
         throw err
     }
 }
@@ -34,10 +51,7 @@ async function getIssue(issueNumber) {
  * @returns {object} pull request data from GitHub
  */
 async function createPullRequest(issueNumber, patch) {
-    const headers = {
-        Authorization: `Bearer ${GITHUB_TOKEN}`,
-        Accept: "application/vnd.github+json"
-    }
+    const headers = buildGithubHeaders()
 
     const base = process.env.GITHUB_BASE_BRANCH || "main"
     const head = `ai-fix-${issueNumber}-${Date.now()}`
