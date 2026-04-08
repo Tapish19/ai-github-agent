@@ -60,6 +60,19 @@ export function SolveButton({ issueNumber }) {
     throw new Error("Issue solving is still running after 5 minutes. Please try again in a moment.")
   }
 
+
+  const checkBackendHealth = async () => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/health`, { timeout: 10000 })
+      if (response?.data?.status !== "ok") {
+        throw new Error("Backend health endpoint returned an unexpected response.")
+      }
+    } catch (err) {
+      const msg = err.response?.data?.error || err.message || "Backend is unreachable"
+      throw new Error(`Backend not reachable at ${API_BASE_URL}: ${msg}`)
+    }
+  }
+
   const handleSolve = async () => {
     if (!Number.isInteger(issueNumber) || issueNumber <= 0) {
       setError("Please enter a valid positive issue number.")
@@ -74,6 +87,9 @@ export function SolveButton({ issueNumber }) {
     setStatusMessage(`Issue solving started for #${issueNumber}...`)
 
     try {
+      await checkBackendHealth()
+      setStatusMessage(`Backend reachable. Starting solve for #${issueNumber}...`)
+
       const response = await axios.post(
         `${API_BASE_URL}/solve`,
         { issueNumber },
