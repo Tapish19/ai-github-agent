@@ -27,12 +27,36 @@ function resolveApiBaseUrl() {
 }
 
 const API_BASE_URL = resolveApiBaseUrl()
+const POLL_INTERVAL_MS = 3000
+const MAX_POLL_MS = 5 * 60 * 1000
 
 export function SolveButton({ issueNumber }) {
   const [isLoading, setIsLoading] = React.useState(false)
   const [statusMessage, setStatusMessage] = React.useState("")
   const [error, setError] = React.useState("")
   const [result, setResult] = React.useState(null)
+
+  const pollSolveJob = async (jobId) => {
+    const start = Date.now()
+
+    while (Date.now() - start < MAX_POLL_MS) {
+      const response = await axios.get(`${API_BASE_URL}/solve/${jobId}`, { timeout: 30000 })
+      const job = response.data
+
+      if (job.status === "completed") {
+        return job
+      }
+
+      if (job.status === "failed") {
+        throw new Error(job.error || "Issue solving failed")
+      }
+
+      setStatusMessage(job.message || "Issue solving in progress...")
+      await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
+    }
+
+    throw new Error("Issue solving is still running after 5 minutes. Please try again in a moment.")
+  }
 
   const handleSolve = async () => {
     if (!Number.isInteger(issueNumber) || issueNumber <= 0) {
@@ -45,24 +69,34 @@ export function SolveButton({ issueNumber }) {
     setIsLoading(true)
     setError("")
     setResult(null)
-    setStatusMessage(`Issue solving started for #${issueNumber}. Contacting ${API_BASE_URL}/solve ...`)
+    setStatusMessage(`Issue solving started for #${issueNumber}...`)
 
     try {
       const response = await axios.post(
         `${API_BASE_URL}/solve`,
         { issueNumber },
-        { timeout: 120000 }
+        { timeout: 30000 }
       )
 
-      setResult(response.data)
+      const solveResponse = response.data
+
+      // Backward-compatible path: backend responds with final payload immediately
+      if (!solveResponse.jobId) {
+        setResult(solveResponse)
+        setStatusMessage("Issue solving completed.")
+        return
+      }
+
+      setStatusMessage("Issue solving in progress...")
+      const finalResult = await pollSolveJob(solveResponse.jobId)
+      setResult(finalResult)
       setStatusMessage("Issue solving completed.")
-      console.log("Issue solving completed", response.data)
     } catch (err) {
       const isTimeout = err.code === "ECONNABORTED"
       const errorMessage =
         err.response?.data?.error ||
         (isTimeout
-          ? "Request timed out after 120 seconds. Check backend logs and try again."
+          ? "Request timed out while contacting the backend. Check server logs and try again."
           : err.message) ||
         "Unknown error"
 

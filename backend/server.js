@@ -15,6 +15,8 @@ const requiredEnv = [
     "GEMINI_API_KEY"
 ]
 
+const jobs = new Map()
+
 function getMissingEnvVars() {
     return requiredEnv.filter((key) => !process.env[key])
 }
@@ -40,6 +42,17 @@ app.get("/health", (req, res) => {
     })
 })
 
+app.get("/solve/:jobId", (req, res) => {
+    const { jobId } = req.params
+    const job = jobs.get(jobId)
+
+    if (!job) {
+        return res.status(404).json({ error: "Job not found" })
+    }
+
+    return res.status(200).json(job)
+})
+
 app.post("/solve", async (req, res) => {
     try {
         const issueNumber = Number(req.body?.issueNumber)
@@ -62,8 +75,47 @@ app.post("/solve", async (req, res) => {
             })
         }
 
-        const result = await solveIssue(issueNumber)
-        return res.json(result)
+        const jobId = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+        jobs.set(jobId, {
+            jobId,
+            status: "queued",
+            issueNumber,
+            createdAt: new Date().toISOString(),
+            message: "Issue solving started"
+        })
+
+        void (async () => {
+            jobs.set(jobId, {
+                ...jobs.get(jobId),
+                status: "in_progress",
+                message: "Issue solving in progress"
+            })
+
+            try {
+                const result = await solveIssue(issueNumber)
+                jobs.set(jobId, {
+                    ...jobs.get(jobId),
+                    status: "completed",
+                    completedAt: new Date().toISOString(),
+                    ...result
+                })
+            } catch (error) {
+                console.error("Error in async solve job:", error.message)
+                jobs.set(jobId, {
+                    ...jobs.get(jobId),
+                    status: "failed",
+                    completedAt: new Date().toISOString(),
+                    error: error.message,
+                    message: "Issue solving failed"
+                })
+            }
+        })()
+
+        return res.status(202).json({
+            jobId,
+            status: "queued",
+            message: "Issue solving started"
+        })
     } catch (error) {
         console.error("Error in /solve:", error.message)
         return res.status(500).json({ error: error.message })
