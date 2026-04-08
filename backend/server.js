@@ -2,7 +2,6 @@ const express = require("express")
 const cors = require("cors")
 require("dotenv").config({ quiet: true })
 
-const { solveIssue } = require("./agent")
 
 const app = express()
 const PORT = Number(process.env.PORT) || 5000
@@ -83,6 +82,17 @@ app.post("/solve", async (req, res) => {
             return res.status(503).json({
                 error: "Backend is missing required environment variables",
                 missingEnv
+            })
+        }
+
+        let solveIssue
+        try {
+            ;({ solveIssue } = require("./agent"))
+        } catch (error) {
+            console.error("Unable to load solver dependencies:", error.message)
+            return res.status(503).json({
+                error: "Solver dependencies are unavailable on this instance",
+                details: error.message
             })
         }
 
