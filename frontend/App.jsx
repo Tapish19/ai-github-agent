@@ -157,12 +157,16 @@ export function SolveButton({ issueNumber }) {
       setStatusMessage("Issue solving completed.")
     } catch (err) {
       const isTimeout = err.code === "ECONNABORTED"
-      const errorMessage =
+      const missingEnv = err.response?.data?.missingEnv
+      const baseErrorMessage =
         err.response?.data?.error ||
         (isTimeout
           ? "Request timed out while contacting the backend. Check server logs and try again."
           : err.message) ||
         "Unknown error"
+      const errorMessage = Array.isArray(missingEnv) && missingEnv.length > 0
+        ? `${baseErrorMessage}. Missing env vars: ${missingEnv.join(", ")}`
+        : baseErrorMessage
 
       setError(errorMessage)
       setStatusMessage("Issue solving failed.")
