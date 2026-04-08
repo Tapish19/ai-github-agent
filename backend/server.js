@@ -22,6 +22,14 @@ function getMissingEnvVars() {
 app.use(cors({ origin: corsOrigin }))
 app.use(express.json())
 
+app.get("/", (req, res) => {
+    return res.status(200).json({
+        status: "ok",
+        message: "AI Issue Solver backend is running",
+        health: "/health"
+    })
+})
+
 app.get("/health", (req, res) => {
     const missingEnv = getMissingEnvVars()
 
