@@ -1,7 +1,32 @@
 import React from 'react'
 import axios from "axios"
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000"
+function resolveApiBaseUrl() {
+  const configuredUrl = import.meta.env.VITE_API_BASE_URL?.trim()
+
+  if (configuredUrl) {
+    return configuredUrl.replace(/\/$/, "")
+  }
+
+  if (typeof window !== "undefined") {
+    const { hostname, origin } = window.location
+    const isLocalhost = hostname === "localhost" || hostname === "127.0.0.1"
+
+    if (isLocalhost) {
+      return "http://localhost:5000"
+    }
+
+    if (hostname.includes("frontend")) {
+      return origin.replace("frontend", "backend")
+    }
+
+    return origin
+  }
+
+  return "http://localhost:5000"
+}
+
+const API_BASE_URL = resolveApiBaseUrl()
 
 export function SolveButton({ issueNumber }) {
   const handleSolve = () => {
