@@ -30,20 +30,44 @@ const API_BASE_URL = resolveApiBaseUrl()
 
 export function SolveButton({ issueNumber }) {
   const [isLoading, setIsLoading] = React.useState(false)
+  const [statusMessage, setStatusMessage] = React.useState("")
   const [error, setError] = React.useState("")
   const [result, setResult] = React.useState(null)
 
   const handleSolve = async () => {
+    if (!Number.isInteger(issueNumber) || issueNumber <= 0) {
+      setError("Please enter a valid positive issue number.")
+      setResult(null)
+      setStatusMessage("")
+      return
+    }
+
     setIsLoading(true)
     setError("")
+    setResult(null)
+    setStatusMessage(`Issue solving started for #${issueNumber}. Contacting ${API_BASE_URL}/solve ...`)
 
     try {
-      const response = await axios.post(`${API_BASE_URL}/solve`, { issueNumber })
+      const response = await axios.post(
+        `${API_BASE_URL}/solve`,
+        { issueNumber },
+        { timeout: 120000 }
+      )
+
       setResult(response.data)
-      console.log("Issue solving started", response.data)
+      setStatusMessage("Issue solving completed.")
+      console.log("Issue solving completed", response.data)
     } catch (err) {
-      const errorMessage = err.response?.data?.error || err.message || "Unknown error"
+      const isTimeout = err.code === "ECONNABORTED"
+      const errorMessage =
+        err.response?.data?.error ||
+        (isTimeout
+          ? "Request timed out after 120 seconds. Check backend logs and try again."
+          : err.message) ||
+        "Unknown error"
+
       setError(errorMessage)
+      setStatusMessage("Issue solving failed.")
       setResult(null)
       console.error("Error:", err)
     } finally {
@@ -61,6 +85,8 @@ export function SolveButton({ issueNumber }) {
         {isLoading ? "Solving..." : "Solve with AI"}
       </button>
 
+      {statusMessage && <p style={{ marginTop: "10px" }}>{statusMessage}</p>}
+
       {error && (
         <p style={{ color: "crimson", marginTop: "10px" }}>
           Error: {error}
@@ -68,16 +94,18 @@ export function SolveButton({ issueNumber }) {
       )}
 
       {result && (
-        <div style={{ marginTop: "12px" }}>
+        <div style={{ marginTop: "12px", textAlign: "left" }}>
           <p><strong>Status:</strong> {result.message || "Done"}</p>
 
-          {result.prUrl && (
+          {result.prUrl ? (
             <p>
               <strong>PR:</strong>{" "}
               <a href={result.prUrl} target="_blank" rel="noreferrer">
                 {result.prUrl}
               </a>
             </p>
+          ) : (
+            <p><strong>PR:</strong> Not available yet.</p>
           )}
 
           {Array.isArray(result.missingEnv) && result.missingEnv.length > 0 && (
@@ -92,7 +120,7 @@ export function SolveButton({ issueNumber }) {
             </p>
           )}
 
-          {result.patch && (
+          {result.patch ? (
             <>
               <p><strong>Generated patch:</strong></p>
               <pre
@@ -107,6 +135,8 @@ export function SolveButton({ issueNumber }) {
                 {result.patch}
               </pre>
             </>
+          ) : (
+            <p><strong>Generated patch:</strong> Not returned by backend.</p>
           )}
         </div>
       )}
