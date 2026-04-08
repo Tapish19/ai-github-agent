@@ -36,6 +36,8 @@ export function SolveButton({ issueNumber }) {
   const [error, setError] = React.useState("")
   const [result, setResult] = React.useState(null)
 
+  const hasOutputDetails = Boolean(result?.prUrl || result?.patch || result?.prError || (Array.isArray(result?.missingEnv) && result.missingEnv.length > 0))
+
   const pollSolveJob = async (jobId) => {
     const start = Date.now()
 
@@ -131,6 +133,12 @@ export function SolveButton({ issueNumber }) {
         <div style={{ marginTop: "12px", textAlign: "left" }}>
           <p><strong>Status:</strong> {result.message || "Done"}</p>
 
+          {!hasOutputDetails && (
+            <p style={{ color: "darkorange" }}>
+              Completed, but backend did not return patch/PR details. Check backend logs and API credentials.
+            </p>
+          )}
+
           {result.prUrl ? (
             <p>
               <strong>PR:</strong>{" "}
@@ -153,6 +161,21 @@ export function SolveButton({ issueNumber }) {
               <strong>PR creation error:</strong> {result.prError}
             </p>
           )}
+
+          <details style={{ marginTop: "10px" }}>
+            <summary><strong>Raw backend response</strong></summary>
+            <pre
+              style={{
+                background: "#111",
+                color: "#f8f8f2",
+                padding: "12px",
+                borderRadius: "6px",
+                overflowX: "auto"
+              }}
+            >
+              {JSON.stringify(result, null, 2)}
+            </pre>
+          </details>
 
           {result.patch ? (
             <>
