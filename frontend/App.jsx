@@ -5,6 +5,8 @@ const STORAGE_KEY = "AI_SOLVER_API_BASE_URL"
 const POLL_INTERVAL_MS = 3000
 const MAX_POLL_MS = 5 * 60 * 1000
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
 function resolveApiBaseUrl() {
   const configuredUrl = import.meta.env.VITE_API_BASE_URL?.trim()
 
@@ -79,6 +81,10 @@ export function SolveButton({ issueNumber }) {
         return true
       }
 
+      if (err.response?.status === 521) {
+        throw new Error(`Backend appears down (521) at ${apiBaseUrl}. Wake the Render service and try again in 30-60 seconds.`)
+      }
+
       const msg = err.response?.data?.error || err.message || "Backend is unreachable"
       throw new Error(`Backend not reachable at ${apiBaseUrl}: ${msg}`)
     }
@@ -92,13 +98,27 @@ export function SolveButton({ issueNumber }) {
         await checkBackendHealth(apiBaseUrl)
         setStatusMessage(`Backend reachable at ${apiBaseUrl}. Starting solve...`)
 
-        const response = await axios.post(
-          `${apiBaseUrl}/solve`,
-          { issueNumber },
-          { timeout: 30000 }
-        )
+        for (let attempt = 1; attempt <= 3; attempt += 1) {
+          try {
+            const response = await axios.post(
+              `${apiBaseUrl}/solve`,
+              { issueNumber },
+              { timeout: 30000 }
+            )
 
-        return { apiBaseUrl, payload: response.data }
+            return { apiBaseUrl, payload: response.data }
+          } catch (err) {
+            const status = err.response?.status
+            const isRetryable = status === 521 || status === 502 || status === 503 || status === 504
+
+            if (!isRetryable || attempt === 3) {
+              throw err
+            }
+
+            setStatusMessage(`Backend warming up (${status}). Retrying in 10s... (${attempt}/3)`)
+            await sleep(10000)
+          }
+        }
       } catch (err) {
         lastError = err
       }
@@ -157,12 +177,15 @@ export function SolveButton({ issueNumber }) {
       setStatusMessage("Issue solving completed.")
     } catch (err) {
       const isTimeout = err.code === "ECONNABORTED"
+      const statusCode = err.response?.status
       const missingEnv = err.response?.data?.missingEnv
       const baseErrorMessage =
         err.response?.data?.error ||
-        (isTimeout
-          ? "Request timed out while contacting the backend. Check server logs and try again."
-          : err.message) ||
+        (statusCode === 521
+          ? "Web server is down (521). Open the backend URL once to wake it, then retry."
+          : isTimeout
+            ? "Request timed out while contacting the backend. Check server logs and try again."
+            : err.message) ||
         "Unknown error"
       const errorMessage = Array.isArray(missingEnv) && missingEnv.length > 0
         ? `${baseErrorMessage}. Missing env vars: ${missingEnv.join(", ")}`
