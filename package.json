@@ -1,6 +1,7 @@
 {
   "scripts": {
-    "start": "node server.js"
+    "postinstall": "npm install --prefix backend",
+    "start": "npm start --prefix backend"
   },
   "dependencies": {
     "openai": "^6.27.0"
