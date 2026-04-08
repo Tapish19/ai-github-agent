@@ -2,10 +2,10 @@ const express = require("express")
 const cors = require("cors")
 require("dotenv").config({ quiet: true })
 
-const { solveIssue } = require("./agent")
 
 const app = express()
-const PORT = process.env.PORT || 5000
+const PORT = Number(process.env.PORT) || 5000
+const HOST = process.env.HOST || "0.0.0.0"
 const corsOrigin = process.env.CORS_ORIGIN || "*"
 
 const requiredEnv = [
@@ -85,6 +85,17 @@ app.post("/solve", async (req, res) => {
             })
         }
 
+        let solveIssue
+        try {
+            ;({ solveIssue } = require("./agent"))
+        } catch (error) {
+            console.error("Unable to load solver dependencies:", error.message)
+            return res.status(503).json({
+                error: "Solver dependencies are unavailable on this instance",
+                details: error.message
+            })
+        }
+
         const jobId = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
         jobs.set(jobId, {
             jobId,
@@ -132,6 +143,6 @@ app.post("/solve", async (req, res) => {
     }
 })
 
-app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`)
+app.listen(PORT, HOST, () => {
+    console.log(`Server running on ${HOST}:${PORT}`)
 })
